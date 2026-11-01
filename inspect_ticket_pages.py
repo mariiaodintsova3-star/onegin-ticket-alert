@@ -10,7 +10,7 @@ from playwright.async_api import async_playwright
 
 SHOW_URL = "https://vakhtangov.ru/show/onegin/"
 STATE_PATH = "monitor_state.json"
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "5007541897")
+CHAT_IDS = [value.strip() for value in os.getenv("TELEGRAM_CHAT_IDS", "5007541897").split(",") if value.strip()]
 
 
 def api_request(url, method="GET", payload=None, token=None):
@@ -136,14 +136,23 @@ async def main():
         print("An alert was already sent earlier; skipping duplicate notification.")
         return
 
-    send_telegram(token, CHAT_ID, available)
-    state = {
-        "notified": True,
-        "notified_at_utc": datetime.utcnow().isoformat(timespec="seconds"),
-        "dates": available,
-    }
-    save_state(repo, github_token, state, sha)
-    print("ALERT STATE SAVED")
+    notified_chat_ids = set(state.get("notified_chat_ids", []))
+    for chat_id in CHAT_IDS:
+        if chat_id in notified_chat_ids:
+            print(f"Alert already sent to chat {chat_id}; skipping.")
+            continue
+        send_telegram(token, chat_id, available)
+        notified_chat_ids.add(chat_id)
+        state = {
+            "notified": all(chat in notified_chat_ids for chat in CHAT_IDS),
+            "notified_chat_ids": sorted(notified_chat_ids),
+            "notified_at_utc": datetime.utcnow().isoformat(timespec="seconds"),
+            "dates": available,
+        }
+        save_state(repo, github_token, state, sha)
+        item = api_request(f"https://api.github.com/repos/{repo}/contents/{STATE_PATH}", token=github_token)
+        sha = item["sha"]
+    print("ALERT STATE SAVED FOR ALL RECIPIENTS")
 
 
 if __name__ == "__main__":
