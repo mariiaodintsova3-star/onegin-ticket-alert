@@ -45,6 +45,18 @@ async def main():
         for src in frames:
             print(src)
 
+        print("\nTICKETLAND DATA JSON:")
+        data_response = await page.request.get("https://vakhtangov.ru/ticketland_afisha/data.json")
+        print(f"DATA STATUS: {data_response.status}")
+        try:
+            data_json = await data_response.json()
+            import json
+            serialized = json.dumps(data_json, ensure_ascii=False, indent=2)
+            print(serialized[:30000])
+        except Exception as exc:
+            print(f"DATA BODY: {(await data_response.text())[:30000]}")
+            print(f"JSON PARSE ERROR: {exc}")
+
         print("\nRELEVANT NETWORK RESPONSES:")
         for status, url in interesting_responses[:100]:
             print(f"RESPONSE {status}: {url}")
