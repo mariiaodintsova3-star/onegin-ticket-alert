@@ -1,0 +1,39 @@
+name: Test Telegram notification
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-telegram:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send test message
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: "5007541897"
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+
+          token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+          if not token:
+              raise SystemExit("TELEGRAM_BOT_TOKEN secret is missing")
+
+          data = urllib.parse.urlencode({
+              "chat_id": os.environ["TELEGRAM_CHAT_ID"],
+              "text": "✅ Тест связи: бот мониторинга билетов на «Евгения Онегина» подключён. Я буду сообщать, когда на официальной странице появятся билеты."
+          }).encode()
+          request = urllib.request.Request(
+              f"https://api.telegram.org/bot{token}/sendMessage",
+              data=data,
+              method="POST"
+          )
+          with urllib.request.urlopen(request, timeout=20) as response:
+              result = json.loads(response.read().decode())
+          if not result.get("ok"):
+              raise SystemExit(f"Telegram API error: {result}")
+          print("Telegram test message sent successfully.")
+          PY
