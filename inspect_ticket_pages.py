@@ -18,7 +18,7 @@ async def main():
 
         page.on("response", track_response)
         print(f"OPEN SHOW PAGE: {SHOW_URL}")
-        response = await page.goto(SHOW_URL, wait_until="networkidle", timeout=60000)
+        response = await page.goto(SHOW_URL, wait_until="domcontentloaded", timeout=60000)
         print(f"SHOW STATUS: {response.status if response else 'no response'}")
         await page.wait_for_timeout(3000)
 
