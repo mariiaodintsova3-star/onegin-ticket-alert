@@ -1,10 +1,16 @@
-name: Inspect official ticket pages
+name: Monitor Onegin tickets
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "*/10 * * * *"
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: onegin-ticket-monitor
+  cancel-in-progress: false
 
 jobs:
   inspect:
@@ -22,5 +28,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           playwright install --with-deps chromium
-      - name: Inspect official ticket pages
+      - name: Check official show page and notify
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: "5007541897"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python inspect_ticket_pages.py
