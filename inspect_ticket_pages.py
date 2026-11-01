@@ -57,6 +57,13 @@ async def main():
             print(f"LINK: {item['text'][:160]} | {item['href']}")
         print(f"FILTERED LINKS COUNT: {len(links)}")
 
+        print("\\nTICKET LINK MARKUP:")
+        sold_out_links = page.locator("a").filter(has_text="Билеты закончились")
+        for idx in range(await sold_out_links.count()):
+            link = sold_out_links.nth(idx)
+            print(f"SOLD OUT LINK {idx}: {await link.evaluate('(el) => el.outerHTML')}")
+            print(f"SOLD OUT PARENT {idx}: {await link.evaluate('(el) => el.parentElement?.parentElement?.outerHTML || el.parentElement?.outerHTML || ""')[:4000]}")
+
         print("\\nIFRAMES:")
         for src in await page.locator("iframe").evaluate_all("(els) => els.map(e => e.src)"):
             print(src)
