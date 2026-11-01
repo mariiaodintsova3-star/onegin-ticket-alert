@@ -102,7 +102,6 @@ async def main():
         is_available = (
             "disabled" not in button["className"].lower()
             and "закончились" not in button["text"].lower()
-            and button["href"] not in ("", "#")
         )
         item = {"date": date_label, "time": time_label, "available": is_available}
         dates.append(item)
