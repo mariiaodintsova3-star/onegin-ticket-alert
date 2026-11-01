@@ -10,7 +10,7 @@ jobs:
       - name: Send test message
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: "5007541897"
+          TELEGRAM_CHAT_IDS: "5007541897,1325955996"
         run: |
           python - <<'PY'
           import json
@@ -22,18 +22,19 @@ jobs:
           if not token:
               raise SystemExit("TELEGRAM_BOT_TOKEN secret is missing")
 
-          data = urllib.parse.urlencode({
-              "chat_id": os.environ["TELEGRAM_CHAT_ID"],
-              "text": "✅ Тест связи: бот мониторинга билетов на «Евгения Онегина» подключён. Я буду сообщать, когда на официальной странице появятся билеты."
-          }).encode()
-          request = urllib.request.Request(
-              f"https://api.telegram.org/bot{token}/sendMessage",
-              data=data,
-              method="POST"
-          )
-          with urllib.request.urlopen(request, timeout=20) as response:
-              result = json.loads(response.read().decode())
-          if not result.get("ok"):
-              raise SystemExit(f"Telegram API error: {result}")
-          print("Telegram test message sent successfully.")
+          for chat_id in os.environ["TELEGRAM_CHAT_IDS"].split(","):
+              data = urllib.parse.urlencode({
+                  "chat_id": chat_id.strip(),
+                  "text": "✅ Тест связи: бот мониторинга билетов на «Евгения Онегина» подключён. Я буду сообщать, когда на официальной странице появятся билеты."
+              }).encode()
+              request = urllib.request.Request(
+                  f"https://api.telegram.org/bot{token}/sendMessage",
+                  data=data,
+                  method="POST"
+              )
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  result = json.loads(response.read().decode())
+              if not result.get("ok"):
+                  raise SystemExit(f"Telegram API error for chat {chat_id}: {result}")
+              print(f"Telegram test message sent to chat {chat_id}.")
           PY
