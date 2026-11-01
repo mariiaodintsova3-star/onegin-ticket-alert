@@ -1,8 +1,33 @@
 import asyncio
+import json
 import re
 from playwright.async_api import async_playwright
 
 SHOW_URL = "https://vakhtangov.ru/show/onegin/"
+DATA_URL = "https://vakhtangov.ru/ticketland_afisha/data.json"
+
+
+def find_onegin_records(value, path="root"):
+    """Walk nested JSON and JSON-encoded strings; return records mentioning Onegin."""
+    found = []
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.startswith(("{", "[")):
+            try:
+                found.extend(find_onegin_records(json.loads(stripped), path + ".<json>"))
+            except Exception:
+                pass
+        return found
+    if isinstance(value, dict):
+        searchable = " ".join(str(v) for k, v in value.items() if k.lower() in {"title", "name", "event", "performance"})
+        if re.search(r"онегин|onegin", searchable, re.I):
+            found.append((path, value))
+        for key, child in value.items():
+            found.extend(find_onegin_records(child, path + "." + str(key)))
+    elif isinstance(value, list):
+        for i, child in enumerate(value):
+            found.extend(find_onegin_records(child, f"{path}[{i}]"))
+    return found
 
 
 async def main():
@@ -12,9 +37,8 @@ async def main():
         interesting_responses = []
 
         def track_response(response):
-            url = response.url
-            if re.search(r"ticket|buy|order|event|afisha|widget|iframe|kassir|qtickets", url, re.I):
-                interesting_responses.append((response.status, url))
+            if re.search(r"ticket|buy|order|event|afisha|widget|iframe|kassir|qtickets", response.url, re.I):
+                interesting_responses.append((response.status, response.url))
 
         page.on("response", track_response)
         print(f"OPEN SHOW PAGE: {SHOW_URL}")
@@ -22,7 +46,7 @@ async def main():
         print(f"SHOW STATUS: {response.status if response else 'no response'}")
         await page.wait_for_timeout(3000)
 
-        print("\nALL LINKS WITH TICKET/BUY/EVENT WORDS:")
+        print("\\nALL LINKS WITH TICKET/BUY/EVENT WORDS:")
         links = await page.locator("a[href]").evaluate_all(
             """els => els.map(a => ({
                 text: (a.innerText || a.textContent || '').trim().replace(/\\s+/g, ' '),
@@ -33,39 +57,28 @@ async def main():
             print(f"LINK: {item['text'][:160]} | {item['href']}")
         print(f"FILTERED LINKS COUNT: {len(links)}")
 
-        print("\nBUTTONS:")
-        buttons = await page.locator("button").evaluate_all(
-            "els => els.map(b => (b.innerText || b.textContent || '').trim().replace(/\\s+/g, ' ')).filter(Boolean)"
-        )
-        for item in buttons[:80]:
-            print(f"BUTTON: {item[:200]}")
-
-        print("\nIFRAMES:")
-        frames = await page.locator("iframe").evaluate_all("(els) => els.map(e => e.src)")
-        for src in frames:
+        print("\\nIFRAMES:")
+        for src in await page.locator("iframe").evaluate_all("(els) => els.map(e => e.src)"):
             print(src)
 
-        print("\nTICKETLAND DATA JSON:")
-        data_response = await page.request.get("https://vakhtangov.ru/ticketland_afisha/data.json")
+        print("\\nTICKETLAND DATA JSON:")
+        data_response = await page.request.get(DATA_URL)
         print(f"DATA STATUS: {data_response.status}")
-        try:
-            data_json = await data_response.json()
-            import json
-            serialized = json.dumps(data_json, ensure_ascii=False, indent=2)
-            print(serialized[:30000])
-        except Exception as exc:
-            print(f"DATA BODY: {(await data_response.text())[:30000]}")
-            print(f"JSON PARSE ERROR: {exc}")
+        data_json = await data_response.json()
+        matches = find_onegin_records(data_json)
+        print(f"ONEGIN MATCH COUNT: {len(matches)}")
+        for path, record in matches[:100]:
+            compact = {k: record.get(k) for k in ("title", "start_date", "has_tickets", "sales_on", "reveal_dt", "hall_id") if k in record}
+            print("ONEGIN RECORD:", json.dumps({"path": path, **compact}, ensure_ascii=False))
 
-        print("\nRELEVANT NETWORK RESPONSES:")
+        print("\\nRELEVANT NETWORK RESPONSES:")
         for status, url in interesting_responses[:100]:
             print(f"RESPONSE {status}: {url}")
 
-        print("\nDATES AND AVAILABILITY TEXT:")
+        print("\\nDATES AND AVAILABILITY TEXT:")
         body = re.sub(r"\\s+", " ", await page.locator("body").inner_text())
         for match in re.finditer(r".{0,100}(?:ноябр|декабр|январ|билет|19:00).{0,180}", body, re.I):
             print(match.group(0)[:300])
-
         await browser.close()
 
 
